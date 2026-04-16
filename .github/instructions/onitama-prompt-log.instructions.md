@@ -1,11 +1,11 @@
 ---
-description: "Use when working in onitama-CFGP, maintaining session history, or updating the prompt log in onitama-CFGP/prompts.md. Before each substantive user-facing response for that project, append a timestamped log entry with the model used, the user's prompt, and the full agent response."
+description: "Use when working in onitama-CFGP or openspec, maintaining session history, or updating the prompt log in onitama-CFGP/prompts.md. Before each substantive user-facing response for those areas, append a timestamped log entry with the model used, the user's prompt, and the full agent response."
 name: "Onitama Prompt Log"
-applyTo: "onitama-CFGP/**"
+applyTo: "{onitama-CFGP,openspec}/**"
 ---
 # Onitama Prompt Log
 
-- Treat `onitama-CFGP/prompts.md` as the running interaction log for work in `onitama-CFGP`.
+- Treat `onitama-CFGP/prompts.md` as the running interaction log for work in `onitama-CFGP` and `openspec`.
 - Before sending a substantive response, append a new entry to `onitama-CFGP/prompts.md`.
 - Keep each entry brief and factual.
 - Include these fields in every entry:
