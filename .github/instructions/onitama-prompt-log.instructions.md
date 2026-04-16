@@ -7,6 +7,8 @@ applyTo: "{onitama-CFGP,openspec}/**"
 
 - Treat `onitama-CFGP/prompts.md` as the running interaction log for work in `onitama-CFGP` and `openspec`.
 - Before sending a substantive response, append a new entry to `onitama-CFGP/prompts.md`.
+- Only log prompts that are meaningful to the project (requirements, design, implementation, debugging, planning, or decisions).
+- Do not log trivial operational prompts that are not project-meaningful (for example: `commit`, `status`, `thanks`, `ok`, or similar command-only chatter).
 - Keep each entry brief and factual.
 - Include these fields in every entry:
   - `Timestamp`
