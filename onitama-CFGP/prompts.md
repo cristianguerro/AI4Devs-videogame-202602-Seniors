@@ -26,3 +26,13 @@ Agent response: "Read the draft-prd.md (Project Pixel-Tama / Onitama Web) and cr
 - **tasks.md**: 11 task groups, 35 checkbox tasks covering scaffold → card data → board → pieces → movement → card rotation → state machine → win conditions → AI → UI polish → integration testing.
 
 All artifacts complete. Ready to implement — run `/opsx:apply` to start."
+
+## 2026-04-16T18:27:29-05:00
+Model: "GPT-5.3-Codex"
+User prompt: "Follow instructions in #prompt:opsx-apply.prompt.md"
+Agent response: "Selected change onitama-web-game-mvp via openspec list, loaded status/instructions/context artifacts, and implemented tasks 1.1 through 10.4 for the Phaser-based Onitama MVP. Added game scaffold, card data/dealer, Boot/Game/GameOver scenes, board rendering, temple tiles, piece placement/capture, move validation with player-2 mirroring, click-based selection flow, card filtering and swaps, phase-based state machine, win-condition checks, random AI moves with delay, and UI layout (top/bottom player cards, neutral card right, turn indicators). Updated tasks.md checkboxes to mark 32 completed tasks. Verified no syntax/editor errors in new JS files. Remaining tasks 11.1-11.5 are integration gameplay verifications that require manual runtime playthrough; pausing for user-guided validation or approval to proceed with browser-driven QA automation." 
+
+## 2026-04-16T18:32:23-05:00
+Model: "GPT-5.3-Codex"
+User prompt: "1"
+Agent response: "Executed option 1 (browser-driven QA) for change onitama-web-game-mvp. Started a local HTTP server, opened onitama-CFGP/index.html, and ran automated integration checks in-browser covering tasks 11.1-11.5: full-match simulation with card-rotation validation each completed turn, Way of the Stone trigger, Way of the Stream trigger, AI move execution, and runtime error capture. Confirmed all checks passed (including no console/page errors in the QA runs), then marked tasks 11.1-11.5 as complete in openspec/changes/onitama-web-game-mvp/tasks.md. Verified OpenSpec apply status reports 37/37 tasks complete with state all_done." 
