@@ -36,3 +36,23 @@ Agent response: "Selected change onitama-web-game-mvp via openspec list, loaded 
 Model: "GPT-5.3-Codex"
 User prompt: "1"
 Agent response: "Executed option 1 (browser-driven QA) for change onitama-web-game-mvp. Started a local HTTP server, opened onitama-CFGP/index.html, and ran automated integration checks in-browser covering tasks 11.1-11.5: full-match simulation with card-rotation validation each completed turn, Way of the Stone trigger, Way of the Stream trigger, AI move execution, and runtime error capture. Confirmed all checks passed (including no console/page errors in the QA runs), then marked tasks 11.1-11.5 as complete in openspec/changes/onitama-web-game-mvp/tasks.md. Verified OpenSpec apply status reports 37/37 tasks complete with state all_done." 
+
+## 2026-04-16T18:38:07-05:00
+Model: "GPT-5.3-Codex"
+User prompt: "Use available workspace tools to sync OpenSpec delta specs for change 'onitama-web-game-mvp' into main specs before archive. Follow project instructions and use any relevant OpenSpec skill/commands if available. Delta spec analysis summary:
+- ai-opponent: ADD (openspec/specs/ai-opponent/spec.md missing)
+- board: ADD (openspec/specs/board/spec.md missing)
+- cards: ADD (openspec/specs/cards/spec.md missing)
+- game-state: ADD (openspec/specs/game-state/spec.md missing)
+- movement: ADD (openspec/specs/movement/spec.md missing)
+- pieces: ADD (openspec/specs/pieces/spec.md missing)
+- ui-layout: ADD (openspec/specs/ui-layout/spec.md missing)
+- win-conditions: ADD (openspec/specs/win-conditions/spec.md missing)
+
+Return: 1) exact files changed, 2) whether sync succeeded, 3) any blockers."
+Agent response: "Synced all eight delta specs from openspec/changes/onitama-web-game-mvp/specs/<capability>/spec.md into openspec/specs/<capability>/spec.md, creating missing destination directories/files. Verified each pair with cmp; all eight report SYNCED|identical. Exact changed files are openspec/specs/ai-opponent/spec.md, openspec/specs/board/spec.md, openspec/specs/cards/spec.md, openspec/specs/game-state/spec.md, openspec/specs/movement/spec.md, openspec/specs/pieces/spec.md, openspec/specs/ui-layout/spec.md, and openspec/specs/win-conditions/spec.md. Sync succeeded with no blockers." 
+
+## 2026-04-16T18:38:42-05:00
+Model: "GPT-5.3-Codex"
+User prompt: "Follow instructions in #prompt:opsx-archive.prompt.md"
+Agent response: "Ran the OpenSpec archive workflow with explicit user selection of change onitama-web-game-mvp. Verified artifact status (all done) and task status (37/37 complete). Assessed delta spec sync state and found 8 unsynced delta specs that would be added to main specs. User chose Sync now; synchronized all 8 specs into openspec/specs and verified sync success. Archived the change directory to openspec/changes/archive/2026-04-16-onitama-web-game-mvp after collision check. Confirmed openspec list now shows no active changes." 
