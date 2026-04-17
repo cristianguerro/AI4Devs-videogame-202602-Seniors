@@ -143,3 +143,39 @@ Agent response: "Using change: onitama-asset-clarity-polish (override with /opsx
 Model: "GPT-5.3-Codex"
 User prompt: "the board is not in the center"
 Agent response: "Adjusted GameScene positioning to anchor the board to camera center and derive UI positions from board center instead of hardcoded coordinates. Updated boardStartX/boardStartY calculation, card slot x positions, neutral card x position, and turn indicator x position to remain layout-consistent with a centered board. Verified there are no syntax/editor errors in the updated file."
+
+## 2026-04-16T19:41:23-05:00
+
+Model: "GPT-5.4"
+User prompt: "Follow instructions in #prompt:opsx-new.prompt.md"
+Agent response: "Loaded the OpenSpec new-change workflow and repo instructions, checked the project prompt log, and paused before creating anything because the request does not include the change name or a description of what to build. Asked the user to describe the feature or fix so a valid kebab-case change name can be derived and the OpenSpec scaffold can be created correctly."
+
+## 2026-04-16T19:42:18-05:00
+
+Model: "GPT-5.4"
+User prompt: "UI change"
+Agent response: "Did not create a change yet because 'UI change' is too broad to produce a meaningful OpenSpec proposal or a defensible kebab-case name. Asked for a more specific description of the UI problem or improvement to target."
+
+## 2026-04-16T19:43:14-05:00
+
+Model: "GPT-5.4"
+User prompt: "It is hard to read card names"
+Agent response: "Created a new OpenSpec change named improve-card-name-readability using the default spec-driven workflow. Verified artifact status shows 0/4 complete with proposal ready first, followed by design, specs, and tasks. Fetched the proposal artifact instructions and stopped without creating any artifacts. The proposal template requires sections for Why, What Changes, Capabilities (new and modified), and Impact. Ready to create the first artifact when requested."
+
+## 2026-04-16T19:44:38-05:00
+
+Model: "GPT-5.4"
+User prompt: "here an example on how it looks currently"
+Agent response: "Captured the screenshot-based clarification as evidence for the improve-card-name-readability change. Identified the likely readability issues visible in the current UI: card labels render too small relative to card size, pixel glyphs lose legibility at the current scale, and the card text competes with low-contrast card backgrounds. Used this as concrete context for the upcoming proposal without creating artifacts yet."
+
+## 2026-04-16T19:45:46-05:00
+
+Model: "GPT-5.4"
+User prompt: "Follow instructions in #prompt:opsx-propose.prompt.md"
+Agent response: "Loaded the OpenSpec propose skill and checked the current context. Found that the intended change already exists as openspec/changes/improve-card-name-readability, so paused before generating artifacts in order to ask whether to continue that existing change or create a separate new one, per the workflow guardrails."
+
+## 2026-04-16T19:48:19-05:00
+
+Model: "GPT-5.4"
+User prompt: "Continue existing change"
+Agent response: "Continued the existing OpenSpec change improve-card-name-readability and generated all required artifacts through apply-ready state. Created proposal.md, design.md, specs/cards/spec.md, specs/ui-layout/spec.md, and tasks.md under openspec/changes/improve-card-name-readability/. The proposal frames the problem as card-title legibility and identifies cards and ui-layout as modified capabilities. The design defines a dedicated title band, fixed fitting rules for long names, stronger contrast hierarchy, and implementation scope limited to the current GameScene card UI path. The delta specs update card-slot readability and layout requirements, including explicit scenarios for long-name readability and preserved state clarity. The tasks break implementation into card title layout, long-name fitting, contrast/state validation, and regression checks. Verified with openspec status that progress is 4/4 artifacts complete and the change is ready for implementation via /opsx:apply."
