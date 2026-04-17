@@ -13,6 +13,13 @@ const PHASE = {
   TRANSITIONING_CARD: "TRANSITIONING_CARD",
   GAME_OVER: "GAME_OVER",
 };
+const TURN_SELECTION_STATE = {
+  IDLE: "IDLE",
+  PREVIEWING_CARD: "PREVIEWING_CARD",
+  CARD_SELECTED: "CARD_SELECTED",
+  PIECE_SELECTED: "PIECE_SELECTED",
+  RESOLVING_MOVE: "RESOLVING_MOVE",
+};
 const CARD_SLOT_METRICS = {
   player: { width: 52, height: 28, titleHeight: 13, bodyInset: 4 },
   neutral: { width: 48, height: 30, titleHeight: 14, bodyInset: 4 },
@@ -30,6 +37,13 @@ const CARD_SLOT_COLORS = {
     body: 0x332b25,
     title: 0x74624c,
     text: "#fff3d8",
+    frameAlpha: 1,
+  },
+  playerPreview: {
+    shell: 0x292520,
+    body: 0x3b3128,
+    title: 0x8f7a59,
+    text: "#fff1d2",
     frameAlpha: 1,
   },
   playerReady: {
@@ -92,9 +106,14 @@ export class GameScene extends Phaser.Scene {
     this.selectedPiecePulseTween = null;
 
     this.selectedPiece = null;
+    this.previewCardIndex = null;
+    this.previewCardMode = null;
     this.selectedCardIndex = null;
+    this.selectionState = TURN_SELECTION_STATE.IDLE;
+    this.eligiblePiecesForSelection = [];
     this.validMovesForSelection = [];
     this.cardUi = { player1: [], player2: [], neutral: null };
+    this.previewUi = null;
 
     this.cards = dealCards();
     this.currentPlayer = OWNER.PLAYER_1;
@@ -105,10 +124,8 @@ export class GameScene extends Phaser.Scene {
       startTurn: (player) => {
         this.currentPlayer = player;
         this.gameState.phase = phaseForPlayer(player);
-        this.selectedPiece = null;
-        this.selectedCardIndex = null;
-        this.stopSelectedPiecePulse();
-        this.clearHighlights();
+        this.resetInteractionState();
+        this.refreshMovementPreview();
         this.refreshTurnIndicator();
         if (this.aiEnabled && this.currentPlayer === this.aiPlayer) {
           this.scheduleAITurn();
@@ -135,8 +152,10 @@ export class GameScene extends Phaser.Scene {
     this.createBoard();
     this.placePieces();
     this.createCardUI();
+    this.createMovementPreviewUI();
     this.createTurnIndicator();
     this.refreshCardUI();
+    this.refreshMovementPreview();
     this.refreshTurnIndicator();
   }
 
@@ -265,6 +284,165 @@ export class GameScene extends Phaser.Scene {
     return moves;
   }
 
+  getActiveCard() {
+    if (this.selectedCardIndex === null) {
+      return null;
+    }
+    return this.activePlayerCards()[this.selectedCardIndex] ?? null;
+  }
+
+  getDisplayedPreviewCard() {
+    const index = this.selectedCardIndex ?? this.previewCardIndex;
+    if (index === null) {
+      return null;
+    }
+
+    const card = this.activePlayerCards()[index];
+    if (!card) {
+      return null;
+    }
+
+    return { card, index };
+  }
+
+  syncSelectionState() {
+    if (this.gameState?.phase === PHASE.TRANSITIONING_CARD) {
+      this.selectionState = TURN_SELECTION_STATE.RESOLVING_MOVE;
+      return;
+    }
+
+    if (this.selectedCardIndex !== null && this.selectedPiece) {
+      this.selectionState = TURN_SELECTION_STATE.PIECE_SELECTED;
+      return;
+    }
+
+    if (this.selectedCardIndex !== null) {
+      this.selectionState = TURN_SELECTION_STATE.CARD_SELECTED;
+      return;
+    }
+
+    if (this.previewCardIndex !== null) {
+      this.selectionState = TURN_SELECTION_STATE.PREVIEWING_CARD;
+      return;
+    }
+
+    this.selectionState = TURN_SELECTION_STATE.IDLE;
+  }
+
+  resetInteractionState() {
+    this.stopSelectedPiecePulse();
+    this.selectedPiece = null;
+    this.previewCardIndex = null;
+    this.previewCardMode = null;
+    this.selectedCardIndex = null;
+    this.eligiblePiecesForSelection = [];
+    this.validMovesForSelection = [];
+    this.clearHighlights();
+    this.syncSelectionState();
+  }
+
+  isTouchPointer(pointer) {
+    return pointer?.wasTouch || pointer?.event?.pointerType === "touch";
+  }
+
+  setPreviewCard(index, mode = "hover") {
+    if (this.selectedCardIndex !== null) {
+      return;
+    }
+    this.previewCardIndex = index;
+    this.previewCardMode = mode;
+    this.syncSelectionState();
+    this.refreshCardUI();
+    this.refreshMovementPreview();
+  }
+
+  clearPreviewCard() {
+    if (this.selectedCardIndex !== null) {
+      return;
+    }
+    this.previewCardIndex = null;
+    this.previewCardMode = null;
+    this.syncSelectionState();
+    this.refreshCardUI();
+    this.refreshMovementPreview();
+  }
+
+  getEligiblePiecesForCard(card) {
+    const pieces = [];
+    for (let row = 0; row < BOARD_SIZE; row += 1) {
+      for (let col = 0; col < BOARD_SIZE; col += 1) {
+        const cell = this.board[row][col];
+        if (!cell || cell.owner !== this.currentPlayer) {
+          continue;
+        }
+
+        if (this.getValidMoves(cell.piece, card, this.currentPlayer).length > 0) {
+          pieces.push(cell.piece);
+        }
+      }
+    }
+    return pieces;
+  }
+
+  refreshBoardGuidance() {
+    this.stopSelectedPiecePulse();
+    this.validMovesForSelection = [];
+    this.eligiblePiecesForSelection = [];
+
+    const activeCard = this.getActiveCard();
+    if (!activeCard) {
+      this.selectedPiece = null;
+      this.clearHighlights();
+      this.syncSelectionState();
+      return;
+    }
+
+    this.eligiblePiecesForSelection = this.getEligiblePiecesForCard(activeCard);
+
+    if (this.selectedPiece && this.eligiblePiecesForSelection.includes(this.selectedPiece)) {
+      this.validMovesForSelection = this.getValidMoves(this.selectedPiece, activeCard, this.currentPlayer).map((move) => ({
+        ...move,
+        cardIndexes: [this.selectedCardIndex],
+      }));
+      this.startSelectedPiecePulse();
+    } else {
+      this.selectedPiece = null;
+    }
+
+    this.renderHighlights();
+    this.syncSelectionState();
+  }
+
+  setActiveCard(index) {
+    const card = this.activePlayerCards()[index];
+    if (!card) {
+      return;
+    }
+
+    this.selectedCardIndex = index;
+    this.previewCardIndex = index;
+    this.previewCardMode = "active";
+    this.refreshBoardGuidance();
+    this.refreshCardUI();
+    this.refreshMovementPreview();
+  }
+
+  clearPieceSelection() {
+    this.stopSelectedPiecePulse();
+    this.selectedPiece = null;
+    this.validMovesForSelection = [];
+    this.refreshBoardGuidance();
+    this.refreshCardUI();
+    this.refreshMovementPreview();
+  }
+
+  selectPieceForActiveCard(piece) {
+    this.selectedPiece = piece;
+    this.refreshBoardGuidance();
+    this.refreshCardUI();
+    this.refreshMovementPreview();
+  }
+
   handleTileClick(col, row) {
     if (this.gameState.phase === PHASE.TRANSITIONING_CARD || this.gameState.phase === PHASE.GAME_OVER) {
       return;
@@ -280,52 +458,22 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    if (clickedCell && clickedCell.owner === this.currentPlayer) {
-      this.selectedPiece = clickedCell.piece;
-      this.selectedCardIndex = null;
-      this.showAllValidMovesForSelectedPiece();
-      this.refreshCardUI();
+    if (this.selectedCardIndex !== null) {
+      if (clickedCell && clickedCell.owner === this.currentPlayer) {
+        if (this.eligiblePiecesForSelection.includes(clickedCell.piece)) {
+          this.selectPieceForActiveCard(clickedCell.piece);
+          return;
+        }
+
+        this.clearPieceSelection();
+        return;
+      }
+
+      this.clearSelection();
       return;
     }
 
     this.clearSelection();
-  }
-
-  showAllValidMovesForSelectedPiece() {
-    this.clearHighlights();
-    if (!this.selectedPiece) {
-      return;
-    }
-
-    const byKey = new Map();
-    this.activePlayerCards().forEach((card, cardIndex) => {
-      this.getValidMoves(this.selectedPiece, card, this.currentPlayer).forEach((move) => {
-        const key = `${move.col}:${move.row}`;
-        const existing = byKey.get(key) ?? { ...move, cardIndexes: [] };
-        existing.cardIndexes.push(cardIndex);
-        byKey.set(key, existing);
-      });
-    });
-
-    this.validMovesForSelection = [...byKey.values()];
-    this.renderHighlights();
-    this.startSelectedPiecePulse();
-  }
-
-  filterMovesBySelectedCard() {
-    this.clearHighlights();
-    if (!this.selectedPiece || this.selectedCardIndex === null) {
-      return;
-    }
-
-    const card = this.activePlayerCards()[this.selectedCardIndex];
-    this.validMovesForSelection = this.getValidMoves(this.selectedPiece, card, this.currentPlayer).map((m) => ({
-      ...m,
-      cardIndexes: [this.selectedCardIndex],
-    }));
-
-    this.renderHighlights();
-    this.startSelectedPiecePulse();
   }
 
   renderHighlights() {
@@ -341,6 +489,18 @@ export class GameScene extends Phaser.Scene {
         0.95,
       );
       this.highlightSprites.push(selectedMarker);
+    } else if (this.selectedCardIndex !== null) {
+      for (const piece of this.eligiblePiecesForSelection) {
+        const eligibleMarker = this.createMarkerSprite(
+          piece.col,
+          piece.row,
+          TEXTURE_KEYS.markers.validMove,
+          TILE_SIZE - 10,
+          3,
+          0.6,
+        );
+        this.highlightSprites.push(eligibleMarker);
+      }
     }
 
     for (const move of this.validMovesForSelection) {
@@ -396,12 +556,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   clearSelection() {
-    this.stopSelectedPiecePulse();
-    this.selectedPiece = null;
-    this.selectedCardIndex = null;
-    this.validMovesForSelection = [];
-    this.clearHighlights();
+    this.resetInteractionState();
     this.refreshCardUI();
+    this.refreshMovementPreview();
   }
 
   getCardTitleLayout(name) {
@@ -518,16 +675,43 @@ export class GameScene extends Phaser.Scene {
         .setDepth(10);
       label.setLineSpacing(-1);
 
-      bg.on("pointerdown", () => {
+      bg.on("pointerover", () => {
+        if (owner !== this.currentPlayer || this.selectedCardIndex !== null) {
+          return;
+        }
+        this.setPreviewCard(index, "hover");
+      });
+
+      bg.on("pointerout", () => {
+        if (owner !== this.currentPlayer || this.selectedCardIndex !== null) {
+          return;
+        }
+        if (this.previewCardIndex === index && this.previewCardMode === "hover") {
+          this.clearPreviewCard();
+        }
+      });
+
+      bg.on("pointerdown", (pointer) => {
         if (owner !== this.currentPlayer) {
           return;
         }
-        if (!this.selectedPiece) {
+
+        if (this.selectedCardIndex === index) {
+          this.clearSelection();
           return;
         }
-        this.selectedCardIndex = index;
-        this.filterMovesBySelectedCard();
-        this.refreshCardUI();
+
+        if (this.selectedCardIndex !== null) {
+          this.setActiveCard(index);
+          return;
+        }
+
+        if (this.previewCardIndex === index) {
+          this.setActiveCard(index);
+          return;
+        }
+
+        this.setPreviewCard(index, this.isTouchPointer(pointer) ? "tap" : "hover");
       });
 
       return { bg, bodyPanel, titleBand, frame, selectedFrame, label, owner, index, slotType };
@@ -544,6 +728,104 @@ export class GameScene extends Phaser.Scene {
     this.cardUi.neutral = neutralSlot;
   }
 
+  createMovementPreviewUI() {
+    const panelX = 293;
+    const panelY = 90;
+    const panelWidth = 44;
+    const panelHeight = 54;
+    const cellSize = 4;
+    const cellGap = 1;
+    const gridOriginX = panelX - ((cellSize + cellGap) * 5 - cellGap) / 2 + cellSize / 2;
+    const gridOriginY = panelY + 4 - ((cellSize + cellGap) * 5 - cellGap) / 2 + cellSize / 2;
+
+    const panel = this.add.rectangle(panelX, panelY, panelWidth, panelHeight, 0x19171a).setDepth(7).setStrokeStyle(1, 0x675a48);
+    const title = this.add
+      .text(panelX, panelY - 18, "Move", {
+        fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif',
+        fontSize: "6px",
+        fontStyle: "bold",
+        color: "#f7ecd2",
+        align: "center",
+      })
+      .setOrigin(0.5)
+      .setDepth(8);
+    title.setLineSpacing(-1);
+
+    const hint = this.add
+      .text(panelX, panelY + 18, "Pick\ncard", {
+        fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif',
+        fontSize: "6px",
+        color: "#cbbda0",
+        align: "center",
+      })
+      .setOrigin(0.5)
+      .setDepth(8);
+    hint.setLineSpacing(-1);
+
+    const cells = [];
+    for (let row = 0; row < 5; row += 1) {
+      for (let col = 0; col < 5; col += 1) {
+        const cell = this.add
+          .rectangle(
+            gridOriginX + col * (cellSize + cellGap),
+            gridOriginY + row * (cellSize + cellGap),
+            cellSize,
+            cellSize,
+            0x34313a,
+            0.55,
+          )
+          .setDepth(8);
+        cells.push(cell);
+      }
+    }
+
+    this.previewUi = { panel, title, hint, cells };
+  }
+
+  refreshMovementPreview() {
+    if (!this.previewUi) {
+      return;
+    }
+
+    const preview = this.getDisplayedPreviewCard();
+    const card = preview?.card ?? null;
+    const sign = this.currentPlayer === OWNER.PLAYER_1 ? 1 : -1;
+    const moveColor = card?.stamp === "red" ? 0xd97f63 : 0x6ba8cb;
+    const centerIndex = 12;
+
+    this.previewUi.cells.forEach((cell, index) => {
+      cell.setFillStyle(0x34313a, 0.45);
+      cell.setStrokeStyle(0, 0x000000, 0);
+      if (index === centerIndex) {
+        cell.setFillStyle(0xf5e6c3, card ? 1 : 0.8);
+      }
+    });
+
+    if (!card) {
+      this.previewUi.title.setText("Move");
+      this.previewUi.hint.setText("Pick\ncard");
+      this.previewUi.panel.setAlpha(0.82);
+      return;
+    }
+
+    const previewTitle = card.name.length > 7 ? this.splitCardTitle(card.name) : card.name;
+    this.previewUi.title.setText(previewTitle);
+    this.previewUi.hint.setText(this.selectedCardIndex !== null ? (this.selectedPiece ? "Pick\ntile" : "Pick\npiece") : "Preview");
+    this.previewUi.panel.setAlpha(this.selectedCardIndex !== null ? 1 : 0.92);
+
+    card.moves.forEach((step) => {
+      const col = 2 + step.dx * sign;
+      const row = 2 + step.dy * sign;
+      if (!inBounds(col, row)) {
+        return;
+      }
+      const index = row * 5 + col;
+      const cell = this.previewUi.cells[index];
+      cell.setFillStyle(moveColor, 1);
+      cell.setStrokeStyle(1, 0xf8edd3, 0.45);
+    });
+  }
+
   refreshCardUI() {
     const updateSlots = (slots, cards, isCurrentPlayer) => {
       slots.forEach((slot, index) => {
@@ -553,7 +835,11 @@ export class GameScene extends Phaser.Scene {
 
         let palette = isCurrentPlayer ? CARD_SLOT_COLORS.playerActive : CARD_SLOT_COLORS.playerIdle;
 
-        if (isCurrentPlayer && this.selectedPiece) {
+        if (isCurrentPlayer && this.previewCardIndex === index && this.selectedCardIndex === null) {
+          palette = CARD_SLOT_COLORS.playerPreview;
+        }
+
+        if (isCurrentPlayer && this.selectedCardIndex !== null) {
           palette = CARD_SLOT_COLORS.playerReady;
         }
 
@@ -643,6 +929,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const selectedCard = this.selectedCardIndex;
+    this.selectionState = TURN_SELECTION_STATE.RESOLVING_MOVE;
     this.clearSelection();
 
     if (this.checkWayOfTheStone(captured, player)) {
@@ -772,9 +1059,8 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      this.selectedPiece = move.piece;
-      this.selectedCardIndex = move.cardIndex;
-      this.validMovesForSelection = [{ ...move.destination, cardIndexes: [move.cardIndex] }];
+      this.setActiveCard(move.cardIndex);
+      this.selectPieceForActiveCard(move.piece);
       this.executeMove(move.destination.col, move.destination.row);
     });
   }

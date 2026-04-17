@@ -16,4 +16,6 @@ const config = {
   scene: [BootScene, GameScene, GameOverScene],
 };
 
-new Phaser.Game(config);
+export const game = new Phaser.Game(config);
+
+globalThis.__PIXEL_TAMA_GAME__ = game;
