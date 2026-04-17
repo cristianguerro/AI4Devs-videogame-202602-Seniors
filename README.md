@@ -50,3 +50,4 @@ Como referencia, se ha proporcionado el desarrollo de un juego de Snake, pero er
 Para darte una idea de cómo estructurar tu proyecto, puedes referirte al juego de Snake desarrollado como ejemplo. Encuentra los archivos y la documentación necesaria en la carpeta `snake-EHS`.
 
 ¡Esperamos ver tu creatividad en acción y jugar los increíbles juegos que desarrolléis!
+
