@@ -1,4 +1,5 @@
 import { dealCards } from "../data/cards.js";
+import { TEXTURE_KEYS, allTextureKeys } from "../data/textureKeys.js";
 
 const BOARD_SIZE = 5;
 const TILE_SIZE = 20;
@@ -34,16 +35,15 @@ export class GameScene extends Phaser.Scene {
   create() {
     this.scene.stop("GameOverScene");
 
-    this.boardStartX = (this.scale.width - BOARD_SIZE * TILE_SIZE) / 2;
-    this.boardStartY = (this.scale.height - BOARD_SIZE * TILE_SIZE) / 2;
+    this.layoutCenterX = this.cameras.main.centerX;
+    this.layoutCenterY = this.cameras.main.centerY;
+    this.boardStartX = Math.round(this.layoutCenterX - (BOARD_SIZE * TILE_SIZE) / 2);
+    this.boardStartY = Math.round(this.layoutCenterY - (BOARD_SIZE * TILE_SIZE) / 2);
 
-    this.board = Array.from({ length: BOARD_SIZE }, () =>
-      Array.from({ length: BOARD_SIZE }, () => null)
-    );
-    this.tileSprites = Array.from({ length: BOARD_SIZE }, () =>
-      Array.from({ length: BOARD_SIZE }, () => null)
-    );
+    this.board = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => null));
+    this.tileSprites = Array.from({ length: BOARD_SIZE }, () => Array.from({ length: BOARD_SIZE }, () => null));
     this.highlightSprites = [];
+    this.selectedPiecePulseTween = null;
 
     this.selectedPiece = null;
     this.selectedCardIndex = null;
@@ -61,6 +61,7 @@ export class GameScene extends Phaser.Scene {
         this.gameState.phase = phaseForPlayer(player);
         this.selectedPiece = null;
         this.selectedCardIndex = null;
+        this.stopSelectedPiecePulse();
         this.clearHighlights();
         this.refreshTurnIndicator();
         if (this.aiEnabled && this.currentPlayer === this.aiPlayer) {
@@ -74,8 +75,7 @@ export class GameScene extends Phaser.Scene {
         if (this.gameState.phase === PHASE.GAME_OVER) {
           return;
         }
-        const nextPlayer =
-          this.currentPlayer === OWNER.PLAYER_1 ? OWNER.PLAYER_2 : OWNER.PLAYER_1;
+        const nextPlayer = this.currentPlayer === OWNER.PLAYER_1 ? OWNER.PLAYER_2 : OWNER.PLAYER_1;
         this.gameState.startTurn(nextPlayer);
       },
       endGame: (winner) => {
@@ -85,6 +85,7 @@ export class GameScene extends Phaser.Scene {
       },
     };
 
+    this.validateRequiredTextures();
     this.createBoard();
     this.placePieces();
     this.createCardUI();
@@ -98,11 +99,14 @@ export class GameScene extends Phaser.Scene {
       for (let col = 0; col < BOARD_SIZE; col += 1) {
         const x = this.boardStartX + col * TILE_SIZE + TILE_SIZE / 2;
         const y = this.boardStartY + row * TILE_SIZE + TILE_SIZE / 2;
+        const textureKey = this.textureOrFallback(
+          this.isTempleArch(col, row) ? TEXTURE_KEYS.board.tileTemple : TEXTURE_KEYS.board.tileBase,
+        );
 
         const tile = this.add
-          .image(x, y, "pixel")
+          .image(x, y, textureKey)
           .setDisplaySize(TILE_SIZE - 2, TILE_SIZE - 2)
-          .setTint(this.isTempleArch(col, row) ? 0x4d6e47 : 0x3e3a36)
+          .setTint(0xffffff)
           .setInteractive({ useHandCursor: true });
 
         tile.setData("col", col);
@@ -114,6 +118,21 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  validateRequiredTextures() {
+    const missing = allTextureKeys().filter((key) => !this.textures.exists(key));
+    if (missing.length > 0) {
+      console.warn(`[Pixel-Tama] Missing textures (${missing.length}). Falling back to pixel: ${missing.join(", ")}`);
+    }
+  }
+
+  textureOrFallback(key) {
+    if (this.textures.exists(key)) {
+      return key;
+    }
+    console.warn(`[Pixel-Tama] Missing texture key \"${key}\", using fallback \"pixel\"`);
+    return TEXTURE_KEYS.fallbackPixel;
+  }
+
   isTempleArch(col, row) {
     return (col === 2 && row === 0) || (col === 2 && row === 4);
   }
@@ -122,20 +141,22 @@ export class GameScene extends Phaser.Scene {
     const x = this.boardStartX + col * TILE_SIZE + TILE_SIZE / 2;
     const y = this.boardStartY + row * TILE_SIZE + TILE_SIZE / 2;
 
-    const color =
+    const key = this.textureOrFallback(
       owner === OWNER.PLAYER_1
         ? type === "MASTER"
-          ? 0xffcc66
-          : 0xe98e3b
+          ? TEXTURE_KEYS.pieces.p1Master
+          : TEXTURE_KEYS.pieces.p1Student
         : type === "MASTER"
-        ? 0x88ddff
-        : 0x4f97d9;
+          ? TEXTURE_KEYS.pieces.p2Master
+          : TEXTURE_KEYS.pieces.p2Student,
+    );
 
     const sprite = this.add
-      .image(x, y, "pixel")
+      .image(x, y, key)
       .setDisplaySize(type === "MASTER" ? 16 : 13, type === "MASTER" ? 16 : 13)
-      .setTint(color)
       .setDepth(5);
+
+    sprite.setData("baseScale", 1);
 
     return sprite;
   }
@@ -199,10 +220,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   handleTileClick(col, row) {
-    if (
-      this.gameState.phase === PHASE.TRANSITIONING_CARD ||
-      this.gameState.phase === PHASE.GAME_OVER
-    ) {
+    if (this.gameState.phase === PHASE.TRANSITIONING_CARD || this.gameState.phase === PHASE.GAME_OVER) {
       return;
     }
 
@@ -245,6 +263,7 @@ export class GameScene extends Phaser.Scene {
 
     this.validMovesForSelection = [...byKey.values()];
     this.renderHighlights();
+    this.startSelectedPiecePulse();
   }
 
   filterMovesBySelectedCard() {
@@ -254,28 +273,46 @@ export class GameScene extends Phaser.Scene {
     }
 
     const card = this.activePlayerCards()[this.selectedCardIndex];
-    this.validMovesForSelection = this.getValidMoves(
-      this.selectedPiece,
-      card,
-      this.currentPlayer
-    ).map((m) => ({ ...m, cardIndexes: [this.selectedCardIndex] }));
+    this.validMovesForSelection = this.getValidMoves(this.selectedPiece, card, this.currentPlayer).map((m) => ({
+      ...m,
+      cardIndexes: [this.selectedCardIndex],
+    }));
 
     this.renderHighlights();
+    this.startSelectedPiecePulse();
   }
 
   renderHighlights() {
     this.clearHighlights();
+
+    if (this.selectedPiece) {
+      const selectedMarker = this.createMarkerSprite(
+        this.selectedPiece.col,
+        this.selectedPiece.row,
+        TEXTURE_KEYS.markers.selectedPiece,
+        TILE_SIZE - 5,
+        4,
+        0.95,
+      );
+      this.highlightSprites.push(selectedMarker);
+    }
+
     for (const move of this.validMovesForSelection) {
-      const x = this.boardStartX + move.col * TILE_SIZE + TILE_SIZE / 2;
-      const y = this.boardStartY + move.row * TILE_SIZE + TILE_SIZE / 2;
-      const marker = this.add
-        .image(x, y, "pixel")
-        .setDisplaySize(TILE_SIZE - 8, TILE_SIZE - 8)
-        .setTint(0xd6bb59)
-        .setAlpha(0.75)
-        .setDepth(2);
+      const hasOpponent = this.board[move.row][move.col] && this.board[move.row][move.col].owner !== this.currentPlayer;
+      const markerTexture = hasOpponent ? TEXTURE_KEYS.markers.captureMove : TEXTURE_KEYS.markers.validMove;
+      const marker = this.createMarkerSprite(move.col, move.row, markerTexture, TILE_SIZE - 6, 3, 0.9);
       this.highlightSprites.push(marker);
     }
+  }
+
+  createMarkerSprite(col, row, textureKey, size, depth, alpha) {
+    const x = this.boardStartX + col * TILE_SIZE + TILE_SIZE / 2;
+    const y = this.boardStartY + row * TILE_SIZE + TILE_SIZE / 2;
+    return this.add
+      .image(x, y, this.textureOrFallback(textureKey))
+      .setDisplaySize(size, size)
+      .setDepth(depth)
+      .setAlpha(alpha);
   }
 
   clearHighlights() {
@@ -283,7 +320,37 @@ export class GameScene extends Phaser.Scene {
     this.highlightSprites = [];
   }
 
+  startSelectedPiecePulse() {
+    this.stopSelectedPiecePulse();
+    if (!this.selectedPiece?.sprite) {
+      return;
+    }
+    const sprite = this.selectedPiece.sprite;
+    const baseScale = sprite.getData("baseScale") ?? 1;
+    sprite.setScale(baseScale);
+    this.selectedPiecePulseTween = this.tweens.add({
+      targets: sprite,
+      scale: baseScale * 1.06,
+      duration: 260,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.InOut",
+    });
+  }
+
+  stopSelectedPiecePulse() {
+    if (this.selectedPiecePulseTween) {
+      this.selectedPiecePulseTween.stop();
+      this.selectedPiecePulseTween = null;
+    }
+    if (this.selectedPiece?.sprite) {
+      const baseScale = this.selectedPiece.sprite.getData("baseScale") ?? 1;
+      this.selectedPiece.sprite.setScale(baseScale);
+    }
+  }
+
   clearSelection() {
+    this.stopSelectedPiecePulse();
     this.selectedPiece = null;
     this.selectedCardIndex = null;
     this.validMovesForSelection = [];
@@ -292,14 +359,28 @@ export class GameScene extends Phaser.Scene {
   }
 
   createCardUI() {
+    const boardCenterX = this.boardStartX + (BOARD_SIZE * TILE_SIZE) / 2;
+    const playerCardOffset = 30;
+    const neutralOffset = 82;
+
     const createCardSlot = (x, y, owner, index) => {
       const bg = this.add
         .rectangle(x, y, 52, 28, 0x2e2a28)
-        .setStrokeStyle(2, 0x6f6458)
+        .setStrokeStyle(0, 0x000000)
         .setInteractive({ useHandCursor: true });
+      const frame = this.add
+        .image(x, y, this.textureOrFallback(TEXTURE_KEYS.ui.cardFramePlayer))
+        .setDisplaySize(52, 28)
+        .setDepth(8);
+      const selectedFrame = this.add
+        .image(x, y, this.textureOrFallback(TEXTURE_KEYS.ui.cardFrameSelected))
+        .setDisplaySize(52, 28)
+        .setDepth(9)
+        .setVisible(false);
       const label = this.add
         .text(x, y, "", { fontSize: "8px", color: "#f4ead5", align: "center" })
-        .setOrigin(0.5);
+        .setOrigin(0.5)
+        .setDepth(10);
 
       bg.on("pointerdown", () => {
         if (owner !== this.currentPlayer) {
@@ -313,19 +394,25 @@ export class GameScene extends Phaser.Scene {
         this.refreshCardUI();
       });
 
-      return { bg, label, owner, index };
+      return { bg, frame, selectedFrame, label, owner, index };
     };
 
-    this.cardUi.player2.push(createCardSlot(110, 18, OWNER.PLAYER_2, 0));
-    this.cardUi.player2.push(createCardSlot(170, 18, OWNER.PLAYER_2, 1));
-    this.cardUi.player1.push(createCardSlot(110, 162, OWNER.PLAYER_1, 0));
-    this.cardUi.player1.push(createCardSlot(170, 162, OWNER.PLAYER_1, 1));
+    this.cardUi.player2.push(createCardSlot(boardCenterX - playerCardOffset, 18, OWNER.PLAYER_2, 0));
+    this.cardUi.player2.push(createCardSlot(boardCenterX + playerCardOffset, 18, OWNER.PLAYER_2, 1));
+    this.cardUi.player1.push(createCardSlot(boardCenterX - playerCardOffset, 162, OWNER.PLAYER_1, 0));
+    this.cardUi.player1.push(createCardSlot(boardCenterX + playerCardOffset, 162, OWNER.PLAYER_1, 1));
 
-    const neutralBg = this.add.rectangle(292, 90, 48, 30, 0x41372f).setStrokeStyle(2, 0xbda170);
+    const neutralX = boardCenterX + neutralOffset;
+    const neutralBg = this.add.rectangle(neutralX, 90, 48, 30, 0x2d2c30).setStrokeStyle(0, 0x000000);
+    const neutralFrame = this.add
+      .image(neutralX, 90, this.textureOrFallback(TEXTURE_KEYS.ui.cardFrameNeutral))
+      .setDisplaySize(48, 30)
+      .setDepth(8);
     const neutralLabel = this.add
-      .text(292, 90, "", { fontSize: "8px", color: "#fff6dc", align: "center" })
-      .setOrigin(0.5);
-    this.cardUi.neutral = { bg: neutralBg, label: neutralLabel };
+      .text(neutralX, 90, "", { fontSize: "8px", color: "#fff6dc", align: "center" })
+      .setOrigin(0.5)
+      .setDepth(10);
+    this.cardUi.neutral = { bg: neutralBg, frame: neutralFrame, label: neutralLabel };
   }
 
   refreshCardUI() {
@@ -333,55 +420,49 @@ export class GameScene extends Phaser.Scene {
       slots.forEach((slot, index) => {
         const card = cards[index];
         slot.label.setText(card ? card.name : "-");
-        slot.bg.setFillStyle(0x2e2a28);
+        slot.bg.setFillStyle(isCurrentPlayer ? 0x2f2a24 : 0x26221e);
+        slot.frame.setAlpha(isCurrentPlayer ? 1 : 0.8);
+        slot.selectedFrame.setVisible(false);
 
         if (isCurrentPlayer && this.selectedPiece) {
-          slot.bg.setStrokeStyle(2, 0xf1cf74);
-        } else {
-          slot.bg.setStrokeStyle(2, 0x6f6458);
+          slot.bg.setFillStyle(0x383027);
         }
 
         if (isCurrentPlayer && this.selectedCardIndex === index) {
-          slot.bg.setFillStyle(0x5a4831);
-          slot.bg.setStrokeStyle(2, 0xf5e8bf);
+          slot.bg.setFillStyle(0x58452f);
+          slot.selectedFrame.setVisible(true);
         }
       });
     };
 
-    updateSlots(
-      this.cardUi.player1,
-      this.cards.player1,
-      this.currentPlayer === OWNER.PLAYER_1
-    );
-    updateSlots(
-      this.cardUi.player2,
-      this.cards.player2,
-      this.currentPlayer === OWNER.PLAYER_2
-    );
+    updateSlots(this.cardUi.player1, this.cards.player1, this.currentPlayer === OWNER.PLAYER_1);
+    updateSlots(this.cardUi.player2, this.cards.player2, this.currentPlayer === OWNER.PLAYER_2);
 
     this.cardUi.neutral.label.setText(this.cards.neutral.name);
   }
 
   createTurnIndicator() {
-    this.turnP1 = this.add.rectangle(28, 162, 42, 24, 0x3a3129).setStrokeStyle(2, 0x6f6458);
-    this.turnP2 = this.add.rectangle(28, 18, 42, 24, 0x3a3129).setStrokeStyle(2, 0x6f6458);
+    const boardCenterX = this.boardStartX + (BOARD_SIZE * TILE_SIZE) / 2;
+    const indicatorOffset = 132;
+    const indicatorX = boardCenterX - indicatorOffset;
 
-    this.add
-      .text(28, 162, "P1", { fontSize: "10px", color: "#f7eacc" })
-      .setOrigin(0.5)
-      .setDepth(10);
-    this.add
-      .text(28, 18, "P2", { fontSize: "10px", color: "#f7eacc" })
-      .setOrigin(0.5)
-      .setDepth(10);
+    this.turnP1 = this.add
+      .image(indicatorX, 162, this.textureOrFallback(TEXTURE_KEYS.ui.turnIdle))
+      .setDisplaySize(42, 24)
+      .setDepth(8);
+    this.turnP2 = this.add
+      .image(indicatorX, 18, this.textureOrFallback(TEXTURE_KEYS.ui.turnIdle))
+      .setDisplaySize(42, 24)
+      .setDepth(8);
+
+    this.add.text(indicatorX, 162, "P1", { fontSize: "10px", color: "#f7eacc" }).setOrigin(0.5).setDepth(10);
+    this.add.text(indicatorX, 18, "P2", { fontSize: "10px", color: "#f7eacc" }).setOrigin(0.5).setDepth(10);
   }
 
   refreshTurnIndicator() {
     const p1Active = this.currentPlayer === OWNER.PLAYER_1;
-    this.turnP1.setFillStyle(p1Active ? 0x6b4d2f : 0x3a3129).setStrokeStyle(2, p1Active ? 0xf2d285 : 0x6f6458);
-    this.turnP2
-      .setFillStyle(!p1Active ? 0x425a6f : 0x3a3129)
-      .setStrokeStyle(2, !p1Active ? 0x9fdbff : 0x6f6458);
+    this.turnP1.setTexture(this.textureOrFallback(p1Active ? TEXTURE_KEYS.ui.turnActiveP1 : TEXTURE_KEYS.ui.turnIdle));
+    this.turnP2.setTexture(this.textureOrFallback(!p1Active ? TEXTURE_KEYS.ui.turnActiveP2 : TEXTURE_KEYS.ui.turnIdle));
     this.refreshCardUI();
   }
 
@@ -403,10 +484,30 @@ export class GameScene extends Phaser.Scene {
     };
     movingPiece.col = targetCol;
     movingPiece.row = targetRow;
-    movingPiece.sprite.setPosition(
-      this.boardStartX + targetCol * TILE_SIZE + TILE_SIZE / 2,
-      this.boardStartY + targetRow * TILE_SIZE + TILE_SIZE / 2
-    );
+    const targetX = this.boardStartX + targetCol * TILE_SIZE + TILE_SIZE / 2;
+    const targetY = this.boardStartY + targetRow * TILE_SIZE + TILE_SIZE / 2;
+
+    this.tweens.add({
+      targets: movingPiece.sprite,
+      x: targetX,
+      y: targetY,
+      duration: 120,
+      ease: "Sine.Out",
+      onComplete: () => {
+        const baseScale = movingPiece.sprite.getData("baseScale") ?? 1;
+        this.tweens.add({
+          targets: movingPiece.sprite,
+          scale: baseScale * 1.12,
+          duration: 70,
+          yoyo: true,
+          ease: "Quad.Out",
+        });
+      },
+    });
+
+    if (captured) {
+      this.playCaptureFlash(targetX, targetY);
+    }
 
     const selectedCard = this.selectedCardIndex;
     this.clearSelection();
@@ -420,17 +521,57 @@ export class GameScene extends Phaser.Scene {
 
     this.gameState.beginCardTransition();
     this.swapCard(player, selectedCard);
-    this.time.delayedCall(250, () => {
+    this.time.delayedCall(220, () => {
       this.gameState.endCardTransition();
     });
   }
 
+  playCaptureFlash(x, y) {
+    const flash = this.add
+      .rectangle(x, y, TILE_SIZE - 2, TILE_SIZE - 2, 0xffc27c)
+      .setDepth(6)
+      .setAlpha(0.8);
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration: 120,
+      ease: "Sine.Out",
+      onComplete: () => flash.destroy(),
+    });
+  }
+
   swapCard(player, cardIndex) {
+    this.animateCardSwap(player, cardIndex);
     const hand = player === OWNER.PLAYER_1 ? this.cards.player1 : this.cards.player2;
     const playedCard = hand[cardIndex];
     hand[cardIndex] = this.cards.neutral;
     this.cards.neutral = playedCard;
     this.refreshCardUI();
+  }
+
+  animateCardSwap(player, cardIndex) {
+    const handSlots = player === OWNER.PLAYER_1 ? this.cardUi.player1 : this.cardUi.player2;
+    const slot = handSlots[cardIndex];
+    const neutral = this.cardUi.neutral;
+    if (!slot || !neutral) {
+      return;
+    }
+
+    const verticalOffset = player === OWNER.PLAYER_1 ? -4 : 4;
+    this.tweens.add({
+      targets: [slot.bg, slot.frame, slot.selectedFrame, slot.label],
+      y: `+=${verticalOffset}`,
+      duration: 80,
+      yoyo: true,
+      ease: "Sine.InOut",
+    });
+    this.tweens.add({
+      targets: [neutral.bg, neutral.frame, neutral.label],
+      y: `+=${-verticalOffset}`,
+      duration: 80,
+      yoyo: true,
+      ease: "Sine.InOut",
+    });
   }
 
   checkWayOfTheStone(capturedPiece, winner) {
@@ -500,9 +641,7 @@ export class GameScene extends Phaser.Scene {
 
       this.selectedPiece = move.piece;
       this.selectedCardIndex = move.cardIndex;
-      this.validMovesForSelection = [
-        { ...move.destination, cardIndexes: [move.cardIndex] },
-      ];
+      this.validMovesForSelection = [{ ...move.destination, cardIndexes: [move.cardIndex] }];
       this.executeMove(move.destination.col, move.destination.row);
     });
   }
