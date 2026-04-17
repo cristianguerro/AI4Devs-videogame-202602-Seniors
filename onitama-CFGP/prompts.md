@@ -179,3 +179,15 @@ Agent response: "Loaded the OpenSpec propose skill and checked the current conte
 Model: "GPT-5.4"
 User prompt: "Continue existing change"
 Agent response: "Continued the existing OpenSpec change improve-card-name-readability and generated all required artifacts through apply-ready state. Created proposal.md, design.md, specs/cards/spec.md, specs/ui-layout/spec.md, and tasks.md under openspec/changes/improve-card-name-readability/. The proposal frames the problem as card-title legibility and identifies cards and ui-layout as modified capabilities. The design defines a dedicated title band, fixed fitting rules for long names, stronger contrast hierarchy, and implementation scope limited to the current GameScene card UI path. The delta specs update card-slot readability and layout requirements, including explicit scenarios for long-name readability and preserved state clarity. The tasks break implementation into card title layout, long-name fitting, contrast/state validation, and regression checks. Verified with openspec status that progress is 4/4 artifacts complete and the change is ready for implementation via /opsx:apply."
+
+## 2026-04-16T19:58:43-05:00
+
+Model: "GPT-5.4"
+User prompt: "Follow instructions in #prompt:opsx-verify.prompt.md"
+Agent response: "Verified the implementation for improve-card-name-readability against its proposal, design, specs, and tasks. Confirmed 13/13 tasks complete and found implementation evidence in onitama-CFGP/src/scenes/GameScene.js for the dedicated title band, deterministic title fitting, stronger card-state contrast, preserved active-turn refresh behavior, and unchanged move/card-swap flow. Found no missing requirement implementations. The main remaining issue is missing automated scenario coverage: the repository contains no test files for the card readability scenarios, so verification can only confirm implementation evidence and prior manual runtime checks. Final assessment: no critical issues, warnings only for absent automated tests; otherwise ready for archive."
+
+## 2026-04-16T20:01:00-05:00
+
+Model: "GPT-5.4"
+User prompt: "Follow instructions in #prompt:opsx-archive.prompt.md"
+Agent response: "Archived the completed change improve-card-name-readability after explicit user confirmation. Verified all artifacts were done and all 13 tasks were complete. Assessed delta specs for cards and ui-layout, confirmed main specs needed updates, and synced those changes into openspec/specs/cards/spec.md and openspec/specs/ui-layout/spec.md before archiving. Then moved the change directory to openspec/changes/archive/2026-04-16-improve-card-name-readability and confirmed openspec list shows no remaining active changes."

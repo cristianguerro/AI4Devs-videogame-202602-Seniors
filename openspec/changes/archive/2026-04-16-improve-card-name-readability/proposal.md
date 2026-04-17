@@ -12,9 +12,11 @@ Card names are currently hard to read during play because the label text is too 
 ## Capabilities
 
 ### New Capabilities
+
 None.
 
 ### Modified Capabilities
+
 - `cards`: Change the card UI requirements so card names remain readable at gameplay scale, including longer names such as Monkey and Elephant.
 - `ui-layout`: Change the layout requirements so the card title area, spacing, and hierarchy support fast card-name recognition without reducing board visibility.
 
