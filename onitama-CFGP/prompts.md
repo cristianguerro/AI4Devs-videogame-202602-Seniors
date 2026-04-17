@@ -191,3 +191,47 @@ Agent response: "Verified the implementation for improve-card-name-readability a
 Model: "GPT-5.4"
 User prompt: "Follow instructions in #prompt:opsx-archive.prompt.md"
 Agent response: "Archived the completed change improve-card-name-readability after explicit user confirmation. Verified all artifacts were done and all 13 tasks were complete. Assessed delta specs for cards and ui-layout, confirmed main specs needed updates, and synced those changes into openspec/specs/cards/spec.md and openspec/specs/ui-layout/spec.md before archiving. Then moved the change directory to openspec/changes/archive/2026-04-16-improve-card-name-readability and confirmed openspec list shows no remaining active changes."
+
+## 2026-04-16T20:05:18-05:00
+
+Model: "GPT-5.4"
+User prompt: "Follow instructions in #prompt:opsx-explore.prompt.md with these arguments: I want to give more clarity to the player of which of the cards movements is being shown as posible play. Also It would be nice to display the movement options a card gives."
+Agent response: "Explored the current Onitama UI without implementing changes. Traced the move flow in GameScene and found that the rules layer already preserves which destination belongs to which card: when a piece is selected, showAllValidMovesForSelectedPiece merges legal destinations and stores cardIndexes for each tile, but renderHighlights paints every legal destination with the same marker, so the ambiguity is visual rather than logical. Confirmed that card movement data already exists in src/data/cards.js, while the current card UI only renders titles. Also identified a layout constraint: the existing player card body is too shallow for a legible full move diagram at the current 320x180 scale, so showing movement options directly inside the current slot would likely feel cramped. Recommended a hybrid direction: give each active card a persistent identity per turn, use those identities on board markers so players can tell left-card, right-card, and shared destinations apart, and add a larger selected-card move preview panel near the neutral card or board instead of forcing a full diagram into the compact card slot. Noted that any preview must respect the existing player-orientation mirroring used by getValidMoves so the displayed pattern matches board behavior. Offered to turn this into a new OpenSpec change proposal if the direction is confirmed."
+
+## 2026-04-16T20:10:04-05:00
+
+Model: "GPT-5.4"
+User prompt: "2
+
+What is the current flow of the player in order to make a move"
+Agent response: "Explained the current player move flow by tracing the implemented interaction sequence in GameScene. Summarized that a turn starts with no selection, the player first clicks one of their own pieces, the scene then computes and shows the union of valid destinations from both active cards, and only after that can the player click one of their cards to filter those destinations to a single card. A move executes only when both a piece and a card have been selected and the player clicks a matching highlighted destination tile. Also noted the reset paths: clicking an invalid/empty area clears selection, clicking another friendly piece restarts selection from that piece, and after move execution the played card swaps with the neutral card before the turn passes. Grounded the explanation in the relevant GameScene methods: handleTileClick, showAllValidMovesForSelectedPiece, filterMovesBySelectedCard, executeMove, and swapCard."
+
+## 2026-04-16T20:13:17-05:00
+
+Model: "GPT-5.4"
+User prompt: "lets defined a better flow and make it an artifact of the repo like a mermeid diagram."
+Agent response: "Created a new repository artifact at onitama-CFGP/move-flow.md defining a clearer player move interaction for Pixel-Tama. Chose a card-first flow to address the identified ambiguity in the current piece-first interaction: first preview or select a card, then show that card's movement pattern, then highlight only pieces that can use it, then highlight only destinations for the chosen piece and card, and finally execute the move. Included interaction notes for hover/tap preview, switching cards, cancellation, eligible-piece emphasis, capture-state distinction, and orientation mirroring in the preview panel. Added a Mermaid flowchart capturing the main path and the change/cancel branches. Validated the Mermaid syntax with the Mermaid validator and successfully previewed the saved document to confirm it renders correctly. No game code was implemented; this was captured as an exploratory design artifact in the repo."
+
+## 2026-04-16T20:16:43-05:00
+
+Model: "GPT-5.4"
+User prompt: "Follow instructions in #prompt:opsx-new.prompt.md"
+Agent response: "Loaded the OpenSpec new-change skill and followed the workflow guardrails. Paused before creating any change because the request does not include a change name or a description of what to build. Per the workflow, asked the required open-ended question so a valid kebab-case change name can be derived before running openspec new change."
+
+## 2026-04-16T20:19:11-05:00
+
+Model: "GPT-5.4"
+User prompt: "Follow instructions in #prompt:opsx-continue.prompt.md"
+Agent response: "Continued the OpenSpec change improve-move-flow and created exactly one artifact: proposal.md at openspec/changes/improve-move-flow/proposal.md. Grounded the proposal in the previously created move-flow design artifact and in the existing movement, cards, and ui-layout specs. The proposal defines the motivation for replacing the current piece-first interaction with a card-first move flow, lists the behavioral changes to card selection, movement preview, eligible-piece emphasis, and destination highlighting, and identifies three modified capabilities: movement, cards, and ui-layout. After creation, OpenSpec status reported progress as 1/4 artifacts complete under the spec-driven workflow, with design and specs now unlocked and tasks still blocked by those two artifacts."
+
+## 2026-04-16T20:20:00-05:00
+
+Model: "GPT-5.4"
+User prompt: "Follow instructions in #prompt:opsx-ff.prompt.md"
+Agent response: "Loaded the OpenSpec fast-forward skill and checked the workflow guardrails. Paused before creating additional artifacts because the /opsx:ff invocation did not include a change name or a description of what to build. Per the workflow, asked the required open-ended question so the target change can be confirmed explicitly before fast-forwarding artifact creation."
+
+## 2026-04-16T20:20:00-05:00
+
+Model: "GPT-5.4"
+User prompt: "Follow instructions in #prompt:opsx-ff.prompt.md"
+Agent response: "Fast-forwarded the existing OpenSpec change improve-move-flow through the remaining artifacts needed for implementation. After confirming the user wanted to continue the existing change, created design.md, three delta spec files for movement, cards, and ui-layout, and tasks.md under openspec/changes/improve-move-flow/. The design documents the card-first interaction model, preview versus locked-card state, eligible-piece emphasis, preview-panel placement, and regression boundaries. The specs update behavior so card selection happens before piece selection, movement preview mirrors active-player orientation, eligible pieces are emphasized before destinations, card preview and cancellation are supported, and the layout reserves space for the preview treatment without obscuring board state. The tasks artifact breaks implementation into turn-state refactor, card interaction updates, board guidance and preview UI, and regression checks. Final OpenSpec status reports 4/4 artifacts complete for the spec-driven workflow, so the change is now apply-ready."
