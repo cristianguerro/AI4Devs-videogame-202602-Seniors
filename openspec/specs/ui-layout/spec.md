@@ -1,34 +1,25 @@
 ## MODIFIED Requirements
 
-### Requirement: UI layout places board center, cards top/bottom, neutral card right
+### Requirement: Movement preview panel is prominently positioned and readable
 
-The system SHALL position the 5x5 board in the center of the canvas, Player 1's cards at the bottom, Player 2's cards at the top, and the Neutral card on the right side. Active turn state SHALL be visually obvious without requiring label reading. The card layout SHALL reserve enough title space, spacing, and contrast treatment for players to recognize card names quickly without reducing board visibility.
+The system SHALL display a dedicated movement preview panel positioned on the left side of the gameplay frame. The panel SHALL be 88×108 pixels with 8px font, displaying the currently previewed or selected card's name, a 5×5 grid showing valid move destinations, and contextual hints (Pick card / Preview / Pick piece / Pick tile). The panel SHALL not overlap the board or card slots.
 
-#### Scenario: All UI elements visible on game start
+#### Scenario: Preview panel is visible on the left side
 
-- **WHEN** the GameScene renders
-- **THEN** the board, both players' card slots, and the neutral card slot are all visible without overlap, and the card-title treatment does not push the layout outside the current gameplay frame
+- **WHEN** GameScene renders
+- **THEN** the movement preview panel is positioned on the left side (approximately x=50) with adequate margin from the canvas edge, and is fully visible within the 320×180 canvas
 
-#### Scenario: Active turn is readable at a glance
+#### Scenario: Preview panel text is readable
 
-- **WHEN** a turn begins for either player
-- **THEN** the active player's side is highlighted with a clear visual treatment that is distinct from idle state while card names remain readable in both active and inactive slots
+- **WHEN** a player hovers over or selects a card
+- **THEN** the card name displays at 8px font with sufficient line spacing and contrast for legibility
 
-#### Scenario: Card titles are readable within the layout
+#### Scenario: Move grid updates correctly in both player orientations
 
-- **WHEN** the card area is shown during normal gameplay
-- **THEN** each card name has a visually distinct title region or hierarchy that separates the label from the card body and supports fast recognition
+- **WHEN** Player 1 or Player 2 previews a card
+- **THEN** the 5×5 grid correctly shows valid moves for that player's orientation (with Player 2's grid mirrored as appropriate)
 
-### Requirement: Valid move tiles are highlighted
+#### Scenario: Contextual hints guide player interaction
 
-The system SHALL highlight cells that are valid destinations when the player has selected a piece and a card. The selected-piece state SHALL remain visually anchored while highlights are visible.
-
-#### Scenario: Highlights appear on piece + card selection
-
-- **WHEN** a player selects a piece and a card
-- **THEN** all valid destination tiles are visually highlighted (e.g., tinted or overlaid)
-
-#### Scenario: Highlights clear on move execution or deselection
-
-- **WHEN** a player executes a move or clicks to deselect
-- **THEN** all tile highlights are removed
+- **WHEN** the player is in different selection states (idle / previewing / card locked / piece selected)
+- **THEN** the hint text updates to show Pick card / Preview / Pick piece / Pick tile respectively
