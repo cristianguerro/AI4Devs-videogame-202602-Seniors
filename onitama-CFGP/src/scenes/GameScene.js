@@ -316,6 +316,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   createInstructionUI() {
+    const camera = this.cameras.main;
+    const centerX = camera.centerX;
+    const centerY = camera.centerY;
+
     const helpButtonBg = this.add
       .rectangle(305, 10, 18, 12, 0x2f2b26)
       .setDepth(30)
@@ -380,11 +384,19 @@ export class GameScene extends Phaser.Scene {
       this.closeInstructionPanel({ completeTutorial: true });
     });
 
-    const promptBg = this.add.rectangle(50, 23, 92, 34, 0x201c17, 0.98).setDepth(32).setStrokeStyle(1, 0xa08765);
+    const overlay = this.add
+      .rectangle(centerX, centerY, camera.width, camera.height, 0x0e0c0a, 0.44)
+      .setDepth(31)
+      .setVisible(false);
+
+    const promptBg = this.add
+      .rectangle(centerX, centerY, 132, 56, 0x201c17, 0.98)
+      .setDepth(32)
+      .setStrokeStyle(1, 0xa08765);
     const promptText = this.add
-      .text(50, 10, "First game?\nQuick tour", {
+      .text(centerX, centerY - 19, "First game?\nQuick tour", {
         fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif',
-        fontSize: "7px",
+        fontSize: "8px",
         color: "#f4e8cf",
         align: "center",
       })
@@ -393,14 +405,14 @@ export class GameScene extends Phaser.Scene {
     promptText.setLineSpacing(0);
 
     const promptStartBg = this.add
-      .rectangle(30, 35, 30, 10, 0x3a3228)
+      .rectangle(centerX - 26, centerY + 13, 42, 12, 0x3a3228)
       .setDepth(33)
       .setStrokeStyle(1, 0xb39872)
       .setInteractive({ useHandCursor: true });
     const promptStartLabel = this.add
-      .text(30, 35, "Start", {
+      .text(centerX - 26, centerY + 13, "Start", {
         fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif',
-        fontSize: "6px",
+        fontSize: "7px",
         fontStyle: "bold",
         color: "#fff3d8",
       })
@@ -411,14 +423,14 @@ export class GameScene extends Phaser.Scene {
     });
 
     const promptSkipBg = this.add
-      .rectangle(70, 35, 30, 10, 0x312b25)
+      .rectangle(centerX + 26, centerY + 13, 42, 12, 0x312b25)
       .setDepth(33)
       .setStrokeStyle(1, 0x7d6e58)
       .setInteractive({ useHandCursor: true });
     const promptSkipLabel = this.add
-      .text(70, 35, "Skip", {
+      .text(centerX + 26, centerY + 13, "Skip", {
         fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif',
-        fontSize: "6px",
+        fontSize: "7px",
         fontStyle: "bold",
         color: "#e6d6ba",
       })
@@ -431,10 +443,11 @@ export class GameScene extends Phaser.Scene {
     this.instructionUi = {
       helpButtonBg,
       helpButtonLabel,
+      overlay,
       panelElements: [panelBg, panelTitle, panelBody, panelCloseBg, panelCloseLabel],
       panelBody,
       panelCloseLabel,
-      promptElements: [promptBg, promptText, promptStartBg, promptStartLabel, promptSkipBg, promptSkipLabel],
+      promptElements: [overlay, promptBg, promptText, promptStartBg, promptStartLabel, promptSkipBg, promptSkipLabel],
     };
 
     this.refreshInstructionUI();
@@ -446,10 +459,12 @@ export class GameScene extends Phaser.Scene {
     }
 
     const activeTurn = this.gameState.phase === PHASE.PLAYER_1_TURN || this.gameState.phase === PHASE.PLAYER_2_TURN;
-    this.instructionUi.helpButtonBg.setVisible(activeTurn);
-    this.instructionUi.helpButtonLabel.setVisible(activeTurn);
+    const showPrompt = this.isTutorialPromptVisible && activeTurn;
 
-    const showPanel = this.isInstructionPanelOpen && this.gameState.phase !== PHASE.GAME_OVER;
+    this.instructionUi.helpButtonBg.setVisible(activeTurn && !showPrompt);
+    this.instructionUi.helpButtonLabel.setVisible(activeTurn && !showPrompt);
+
+    const showPanel = this.isInstructionPanelOpen && this.gameState.phase !== PHASE.GAME_OVER && !showPrompt;
     this.instructionUi.panelElements.forEach((node) => {
       node.setVisible(showPanel);
     });
@@ -462,7 +477,6 @@ export class GameScene extends Phaser.Scene {
       this.instructionUi.panelCloseLabel.setText(this.isTutorialTourActive ? "Done" : "Close");
     }
 
-    const showPrompt = this.isTutorialPromptVisible && activeTurn;
     this.instructionUi.promptElements.forEach((node) => {
       node.setVisible(showPrompt);
     });
