@@ -74,6 +74,14 @@ const CARD_TITLE_OVERRIDES = {
   Rooster: "Roos\nter",
 };
 
+const TUTORIAL_STORAGE_KEY = "pixel-tama:tutorial-state";
+const TUTORIAL_VERSION = "1";
+const TUTORIAL_STATUS = {
+  PENDING: "pending",
+  COMPLETED: "completed",
+  SKIPPED: "skipped",
+};
+
 function inBounds(col, row) {
   return col >= 0 && col < BOARD_SIZE && row >= 0 && row < BOARD_SIZE;
 }
@@ -114,6 +122,13 @@ export class GameScene extends Phaser.Scene {
     this.validMovesForSelection = [];
     this.cardUi = { player1: [], player2: [], neutral: null };
     this.previewUi = null;
+    this.instructionUi = null;
+    this.tutorialStorageAvailable = true;
+    this.tutorialFallbackState = null;
+    this.tutorialState = this.loadTutorialState();
+    this.isTutorialPromptVisible = false;
+    this.isTutorialTourActive = false;
+    this.isInstructionPanelOpen = false;
 
     this.cards = dealCards();
     this.currentPlayer = OWNER.PLAYER_1;
@@ -154,9 +169,303 @@ export class GameScene extends Phaser.Scene {
     this.createCardUI();
     this.createMovementPreviewUI();
     this.createTurnIndicator();
+    this.createInstructionUI();
     this.refreshCardUI();
     this.refreshMovementPreview();
     this.refreshTurnIndicator();
+    this.showTutorialPromptIfNeeded();
+    this.refreshInstructionUI();
+  }
+
+  getDefaultTutorialState() {
+    return { version: TUTORIAL_VERSION, status: TUTORIAL_STATUS.PENDING };
+  }
+
+  normalizeTutorialState(rawValue) {
+    const fallback = this.getDefaultTutorialState();
+    if (!rawValue || typeof rawValue !== "object") {
+      return fallback;
+    }
+
+    const status = rawValue.status;
+    const version = typeof rawValue.version === "string" ? rawValue.version : "";
+    const statusIsKnown = Object.values(TUTORIAL_STATUS).includes(status);
+
+    if (!statusIsKnown || version !== TUTORIAL_VERSION) {
+      return fallback;
+    }
+
+    return { version, status };
+  }
+
+  loadTutorialState() {
+    const fallback = this.getDefaultTutorialState();
+
+    try {
+      const value = globalThis.localStorage?.getItem(TUTORIAL_STORAGE_KEY);
+      if (!value) {
+        return fallback;
+      }
+      return this.normalizeTutorialState(JSON.parse(value));
+    } catch {
+      this.tutorialStorageAvailable = false;
+      this.tutorialFallbackState = fallback;
+      return fallback;
+    }
+  }
+
+  saveTutorialState(status) {
+    const next = this.normalizeTutorialState({ version: TUTORIAL_VERSION, status });
+    this.tutorialState = next;
+
+    if (!this.tutorialStorageAvailable) {
+      this.tutorialFallbackState = next;
+      return;
+    }
+
+    try {
+      globalThis.localStorage?.setItem(TUTORIAL_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      this.tutorialStorageAvailable = false;
+      this.tutorialFallbackState = next;
+    }
+  }
+
+  shouldShowTutorialPrompt() {
+    return this.tutorialState.status === TUTORIAL_STATUS.PENDING;
+  }
+
+  isInstructionBlockingInput() {
+    return this.isTutorialPromptVisible;
+  }
+
+  showTutorialPromptIfNeeded() {
+    if (!this.shouldShowTutorialPrompt()) {
+      return;
+    }
+    this.isTutorialPromptVisible = true;
+    this.refreshInstructionUI();
+  }
+
+  openInstructionPanel(options = {}) {
+    this.isInstructionPanelOpen = true;
+    if (options.fromTutorial === true) {
+      this.isTutorialTourActive = true;
+    }
+    this.refreshInstructionUI();
+  }
+
+  closeInstructionPanel(options = {}) {
+    if (options.completeTutorial && this.isTutorialTourActive) {
+      this.saveTutorialState(TUTORIAL_STATUS.COMPLETED);
+    }
+    this.isInstructionPanelOpen = false;
+    this.isTutorialTourActive = false;
+    this.refreshInstructionUI();
+  }
+
+  skipTutorialPrompt() {
+    this.isTutorialPromptVisible = false;
+    this.saveTutorialState(TUTORIAL_STATUS.SKIPPED);
+    this.refreshInstructionUI();
+  }
+
+  startTutorialTour() {
+    this.isTutorialPromptVisible = false;
+    this.openInstructionPanel({ fromTutorial: true });
+  }
+
+  toggleInstructionPanel() {
+    if (this.isInstructionPanelOpen) {
+      this.closeInstructionPanel({ completeTutorial: false });
+      return;
+    }
+    this.openInstructionPanel({ fromTutorial: false });
+  }
+
+  getGuidanceHintText() {
+    switch (this.selectionState) {
+      case TURN_SELECTION_STATE.PREVIEWING_CARD:
+        return "Preview";
+      case TURN_SELECTION_STATE.CARD_SELECTED:
+        return "Pick\npiece";
+      case TURN_SELECTION_STATE.PIECE_SELECTED:
+        return "Pick\ntile";
+      case TURN_SELECTION_STATE.RESOLVING_MOVE:
+        return "Resol\nving";
+      case TURN_SELECTION_STATE.IDLE:
+      default:
+        return "Pick\ncard";
+    }
+  }
+
+  getGuidanceDetailText() {
+    switch (this.selectionState) {
+      case TURN_SELECTION_STATE.PREVIEWING_CARD:
+        return "Hover or tap card\nagain to lock";
+      case TURN_SELECTION_STATE.CARD_SELECTED:
+        return "Select a glowing\npiece";
+      case TURN_SELECTION_STATE.PIECE_SELECTED:
+        return "Pick highlighted\ndestination";
+      case TURN_SELECTION_STATE.RESOLVING_MOVE:
+        return "Move resolving\n...";
+      case TURN_SELECTION_STATE.IDLE:
+      default:
+        return "Choose a card\nto begin";
+    }
+  }
+
+  createInstructionUI() {
+    const helpButtonBg = this.add
+      .rectangle(305, 10, 18, 12, 0x2f2b26)
+      .setDepth(30)
+      .setStrokeStyle(1, 0x8e7b5f)
+      .setInteractive({ useHandCursor: true });
+    const helpButtonLabel = this.add
+      .text(305, 10, "?", {
+        fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif',
+        fontSize: "9px",
+        fontStyle: "bold",
+        color: "#f8edd3",
+        align: "center",
+      })
+      .setOrigin(0.5)
+      .setDepth(31);
+
+    helpButtonBg.on("pointerdown", () => {
+      if (this.gameState.phase === PHASE.GAME_OVER) {
+        return;
+      }
+      this.toggleInstructionPanel();
+    });
+
+    const panelBg = this.add.rectangle(50, 90, 88, 108, 0x1f1a15, 0.96).setDepth(26).setStrokeStyle(1, 0x8e7b5f);
+    const panelTitle = this.add
+      .text(50, 44, "Help", {
+        fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif',
+        fontSize: "8px",
+        fontStyle: "bold",
+        color: "#f7ecd2",
+        align: "center",
+      })
+      .setOrigin(0.5)
+      .setDepth(27);
+    const panelBody = this.add
+      .text(50, 90, "", {
+        fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif',
+        fontSize: "7px",
+        color: "#e6d8bd",
+        align: "center",
+      })
+      .setOrigin(0.5)
+      .setDepth(27);
+    panelBody.setLineSpacing(-1);
+
+    const panelCloseBg = this.add
+      .rectangle(50, 130, 56, 12, 0x3a3127)
+      .setDepth(27)
+      .setStrokeStyle(1, 0x9f8866)
+      .setInteractive({ useHandCursor: true });
+    const panelCloseLabel = this.add
+      .text(50, 130, "Close", {
+        fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif',
+        fontSize: "7px",
+        fontStyle: "bold",
+        color: "#fff2d5",
+        align: "center",
+      })
+      .setOrigin(0.5)
+      .setDepth(28);
+    panelCloseBg.on("pointerdown", () => {
+      this.closeInstructionPanel({ completeTutorial: true });
+    });
+
+    const promptBg = this.add.rectangle(50, 23, 92, 34, 0x201c17, 0.98).setDepth(32).setStrokeStyle(1, 0xa08765);
+    const promptText = this.add
+      .text(50, 10, "First game?\nQuick tour", {
+        fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif',
+        fontSize: "7px",
+        color: "#f4e8cf",
+        align: "center",
+      })
+      .setOrigin(0.5, 0)
+      .setDepth(33);
+    promptText.setLineSpacing(0);
+
+    const promptStartBg = this.add
+      .rectangle(30, 35, 30, 10, 0x3a3228)
+      .setDepth(33)
+      .setStrokeStyle(1, 0xb39872)
+      .setInteractive({ useHandCursor: true });
+    const promptStartLabel = this.add
+      .text(30, 35, "Start", {
+        fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif',
+        fontSize: "6px",
+        fontStyle: "bold",
+        color: "#fff3d8",
+      })
+      .setOrigin(0.5)
+      .setDepth(34);
+    promptStartBg.on("pointerdown", () => {
+      this.startTutorialTour();
+    });
+
+    const promptSkipBg = this.add
+      .rectangle(70, 35, 30, 10, 0x312b25)
+      .setDepth(33)
+      .setStrokeStyle(1, 0x7d6e58)
+      .setInteractive({ useHandCursor: true });
+    const promptSkipLabel = this.add
+      .text(70, 35, "Skip", {
+        fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif',
+        fontSize: "6px",
+        fontStyle: "bold",
+        color: "#e6d6ba",
+      })
+      .setOrigin(0.5)
+      .setDepth(34);
+    promptSkipBg.on("pointerdown", () => {
+      this.skipTutorialPrompt();
+    });
+
+    this.instructionUi = {
+      helpButtonBg,
+      helpButtonLabel,
+      panelElements: [panelBg, panelTitle, panelBody, panelCloseBg, panelCloseLabel],
+      panelBody,
+      panelCloseLabel,
+      promptElements: [promptBg, promptText, promptStartBg, promptStartLabel, promptSkipBg, promptSkipLabel],
+    };
+
+    this.refreshInstructionUI();
+  }
+
+  refreshInstructionUI() {
+    if (!this.instructionUi) {
+      return;
+    }
+
+    const activeTurn = this.gameState.phase === PHASE.PLAYER_1_TURN || this.gameState.phase === PHASE.PLAYER_2_TURN;
+    this.instructionUi.helpButtonBg.setVisible(activeTurn);
+    this.instructionUi.helpButtonLabel.setVisible(activeTurn);
+
+    const showPanel = this.isInstructionPanelOpen && this.gameState.phase !== PHASE.GAME_OVER;
+    this.instructionUi.panelElements.forEach((node) => {
+      node.setVisible(showPanel);
+    });
+
+    if (showPanel) {
+      const hint = this.getGuidanceHintText().replace("\n", " ");
+      this.instructionUi.panelBody.setText(
+        `Now: ${hint}\n${this.getGuidanceDetailText()}\n\nFlow:\ncard -> piece -> tile`,
+      );
+      this.instructionUi.panelCloseLabel.setText(this.isTutorialTourActive ? "Done" : "Close");
+    }
+
+    const showPrompt = this.isTutorialPromptVisible && activeTurn;
+    this.instructionUi.promptElements.forEach((node) => {
+      node.setVisible(showPrompt);
+    });
   }
 
   createBoard() {
@@ -323,10 +632,12 @@ export class GameScene extends Phaser.Scene {
 
     if (this.previewCardIndex !== null) {
       this.selectionState = TURN_SELECTION_STATE.PREVIEWING_CARD;
+      this.refreshInstructionUI();
       return;
     }
 
     this.selectionState = TURN_SELECTION_STATE.IDLE;
+    this.refreshInstructionUI();
   }
 
   resetInteractionState() {
@@ -446,6 +757,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   handleTileClick(col, row) {
+    if (this.isInstructionBlockingInput()) {
+      return;
+    }
+
     if (this.gameState.phase === PHASE.TRANSITIONING_CARD || this.gameState.phase === PHASE.GAME_OVER) {
       return;
     }
@@ -672,6 +987,10 @@ export class GameScene extends Phaser.Scene {
       label.setLineSpacing(-1);
 
       bg.on("pointerover", () => {
+        if (this.isInstructionBlockingInput()) {
+          return;
+        }
+
         if (owner !== this.currentPlayer || this.selectedCardIndex !== null) {
           return;
         }
@@ -679,6 +998,10 @@ export class GameScene extends Phaser.Scene {
       });
 
       bg.on("pointerout", () => {
+        if (this.isInstructionBlockingInput()) {
+          return;
+        }
+
         if (owner !== this.currentPlayer || this.selectedCardIndex !== null) {
           return;
         }
@@ -688,6 +1011,10 @@ export class GameScene extends Phaser.Scene {
       });
 
       bg.on("pointerdown", (pointer) => {
+        if (this.isInstructionBlockingInput()) {
+          return;
+        }
+
         if (owner !== this.currentPlayer) {
           return;
         }
@@ -803,16 +1130,15 @@ export class GameScene extends Phaser.Scene {
 
     if (!card) {
       this.previewUi.title.setText("Move");
-      this.previewUi.hint.setText("Pick\ncard");
+      this.previewUi.hint.setText(this.getGuidanceHintText());
       this.previewUi.panel.setAlpha(0.82);
+      this.refreshInstructionUI();
       return;
     }
 
     const previewTitle = card.name.length > 7 ? this.splitCardTitle(card.name) : card.name;
     this.previewUi.title.setText(previewTitle);
-    this.previewUi.hint.setText(
-      this.selectedCardIndex !== null ? (this.selectedPiece ? "Pick\ntile" : "Pick\npiece") : "Preview",
-    );
+    this.previewUi.hint.setText(this.getGuidanceHintText());
     this.previewUi.panel.setAlpha(this.selectedCardIndex !== null ? 1 : 0.92);
 
     card.moves.forEach((step) => {
@@ -826,6 +1152,8 @@ export class GameScene extends Phaser.Scene {
       cell.setFillStyle(moveColor, 1);
       cell.setStrokeStyle(1, 0xf8edd3, 0.45);
     });
+
+    this.refreshInstructionUI();
   }
 
   refreshCardUI() {
@@ -885,6 +1213,7 @@ export class GameScene extends Phaser.Scene {
     this.turnP1.setTexture(this.textureOrFallback(p1Active ? TEXTURE_KEYS.ui.turnActiveP1 : TEXTURE_KEYS.ui.turnIdle));
     this.turnP2.setTexture(this.textureOrFallback(!p1Active ? TEXTURE_KEYS.ui.turnActiveP2 : TEXTURE_KEYS.ui.turnIdle));
     this.refreshCardUI();
+    this.refreshInstructionUI();
   }
 
   executeMove(targetCol, targetRow) {
