@@ -400,10 +400,12 @@ export class GameScene extends Phaser.Scene {
     this.eligiblePiecesForSelection = this.getEligiblePiecesForCard(activeCard);
 
     if (this.selectedPiece && this.eligiblePiecesForSelection.includes(this.selectedPiece)) {
-      this.validMovesForSelection = this.getValidMoves(this.selectedPiece, activeCard, this.currentPlayer).map((move) => ({
-        ...move,
-        cardIndexes: [this.selectedCardIndex],
-      }));
+      this.validMovesForSelection = this.getValidMoves(this.selectedPiece, activeCard, this.currentPlayer).map(
+        (move) => ({
+          ...move,
+          cardIndexes: [this.selectedCardIndex],
+        }),
+      );
       this.startSelectedPiecePulse();
     } else {
       this.selectedPiece = null;
@@ -640,13 +642,7 @@ export class GameScene extends Phaser.Scene {
         .rectangle(x, y, metrics.width, metrics.height, 0x221f1d)
         .setStrokeStyle(0, 0x000000)
         .setInteractive({ useHandCursor: true });
-      const bodyPanel = this.add.rectangle(
-        x,
-        bodyY,
-        metrics.width - metrics.bodyInset * 2,
-        bodyHeight,
-        0x2b2521,
-      );
+      const bodyPanel = this.add.rectangle(x, bodyY, metrics.width - metrics.bodyInset * 2, bodyHeight, 0x2b2521);
       const titleBand = this.add.rectangle(
         x,
         titleY,
@@ -729,20 +725,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   createMovementPreviewUI() {
-    const panelX = 293;
+    const panelX = 50;
     const panelY = 90;
-    const panelWidth = 44;
-    const panelHeight = 54;
-    const cellSize = 4;
-    const cellGap = 1;
-    const gridOriginX = panelX - ((cellSize + cellGap) * 5 - cellGap) / 2 + cellSize / 2;
-    const gridOriginY = panelY + 4 - ((cellSize + cellGap) * 5 - cellGap) / 2 + cellSize / 2;
+    const panelWidth = 88;
+    const panelHeight = 108;
+    const cellSize = 8;
+    const cellGap = 2;
+    const gridSpan = cellSize * 5 + cellGap * 4;
+    const gridOriginX = panelX - gridSpan / 2 + cellSize / 2;
+    const gridOriginY = panelY + 4 - gridSpan / 2 + cellSize / 2;
 
-    const panel = this.add.rectangle(panelX, panelY, panelWidth, panelHeight, 0x19171a).setDepth(7).setStrokeStyle(1, 0x675a48);
+    const panel = this.add
+      .rectangle(panelX, panelY, panelWidth, panelHeight, 0x19171a)
+      .setDepth(7)
+      .setStrokeStyle(1, 0x675a48);
     const title = this.add
-      .text(panelX, panelY - 18, "Move", {
+      .text(panelX, panelY - 36, "Move", {
         fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif',
-        fontSize: "6px",
+        fontSize: "8px",
         fontStyle: "bold",
         color: "#f7ecd2",
         align: "center",
@@ -752,9 +752,9 @@ export class GameScene extends Phaser.Scene {
     title.setLineSpacing(-1);
 
     const hint = this.add
-      .text(panelX, panelY + 18, "Pick\ncard", {
+      .text(panelX, panelY + 36, "Pick\ncard", {
         fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif',
-        fontSize: "6px",
+        fontSize: "8px",
         color: "#cbbda0",
         align: "center",
       })
@@ -810,7 +810,9 @@ export class GameScene extends Phaser.Scene {
 
     const previewTitle = card.name.length > 7 ? this.splitCardTitle(card.name) : card.name;
     this.previewUi.title.setText(previewTitle);
-    this.previewUi.hint.setText(this.selectedCardIndex !== null ? (this.selectedPiece ? "Pick\ntile" : "Pick\npiece") : "Preview");
+    this.previewUi.hint.setText(
+      this.selectedCardIndex !== null ? (this.selectedPiece ? "Pick\ntile" : "Pick\npiece") : "Preview",
+    );
     this.previewUi.panel.setAlpha(this.selectedCardIndex !== null ? 1 : 0.92);
 
     card.moves.forEach((step) => {
