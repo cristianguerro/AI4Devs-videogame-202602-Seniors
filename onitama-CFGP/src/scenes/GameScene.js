@@ -13,6 +13,52 @@ const PHASE = {
   TRANSITIONING_CARD: "TRANSITIONING_CARD",
   GAME_OVER: "GAME_OVER",
 };
+const CARD_SLOT_METRICS = {
+  player: { width: 52, height: 28, titleHeight: 13, bodyInset: 4 },
+  neutral: { width: 48, height: 30, titleHeight: 14, bodyInset: 4 },
+};
+const CARD_SLOT_COLORS = {
+  playerIdle: {
+    shell: 0x221f1d,
+    body: 0x2b2521,
+    title: 0x5a4f42,
+    text: "#f8edd3",
+    frameAlpha: 0.84,
+  },
+  playerActive: {
+    shell: 0x27231f,
+    body: 0x332b25,
+    title: 0x74624c,
+    text: "#fff3d8",
+    frameAlpha: 1,
+  },
+  playerReady: {
+    shell: 0x29241f,
+    body: 0x383028,
+    title: 0x857057,
+    text: "#fff1cf",
+    frameAlpha: 1,
+  },
+  playerSelected: {
+    shell: 0x31291f,
+    body: 0x4a3a27,
+    title: 0xa98a57,
+    text: "#fff6db",
+    frameAlpha: 1,
+  },
+  neutral: {
+    shell: 0x242228,
+    body: 0x2f2d35,
+    title: 0x605b6d,
+    text: "#f4edd8",
+    frameAlpha: 1,
+  },
+};
+
+const CARD_TITLE_OVERRIDES = {
+  Elephant: "Ele\nphant",
+  Rooster: "Roos\nter",
+};
 
 function inBounds(col, row) {
   return col >= 0 && col < BOARD_SIZE && row >= 0 && row < BOARD_SIZE;
@@ -358,29 +404,119 @@ export class GameScene extends Phaser.Scene {
     this.refreshCardUI();
   }
 
+  getCardTitleLayout(name) {
+    const text = name ?? "-";
+
+    if (text === "-") {
+      return { text, fontSize: "8px", lineSpacing: 0 };
+    }
+
+    if (CARD_TITLE_OVERRIDES[text]) {
+      return { text: CARD_TITLE_OVERRIDES[text], fontSize: "6px", lineSpacing: -2 };
+    }
+
+    if (text.length <= 5) {
+      return { text, fontSize: "9px", lineSpacing: 0 };
+    }
+
+    if (text.length <= 7) {
+      return { text, fontSize: "8px", lineSpacing: 0 };
+    }
+
+    return {
+      text: this.splitCardTitle(text),
+      fontSize: "6px",
+      lineSpacing: -2,
+    };
+  }
+
+  splitCardTitle(name) {
+    const minBreak = 3;
+    const maxBreak = name.length - 3;
+    const target = Math.floor(name.length / 2);
+    let bestIndex = target;
+    let bestScore = Number.POSITIVE_INFINITY;
+
+    for (let index = minBreak; index <= maxBreak; index += 1) {
+      const prev = name[index - 1].toLowerCase();
+      const next = name[index].toLowerCase();
+      const prevIsVowel = /[aeiou]/.test(prev);
+      const nextIsVowel = /[aeiou]/.test(next);
+      const boundaryBonus = prevIsVowel && !nextIsVowel ? -1.5 : prevIsVowel !== nextIsVowel ? -0.5 : 0;
+      const score = Math.abs(index - target) + boundaryBonus;
+
+      if (score < bestScore) {
+        bestScore = score;
+        bestIndex = index;
+      }
+    }
+
+    return `${name.slice(0, bestIndex)}\n${name.slice(bestIndex)}`;
+  }
+
+  applyCardTitleLayout(label, name) {
+    const layout = this.getCardTitleLayout(name);
+    label.setText(layout.text);
+    label.setFontSize(layout.fontSize);
+    label.setLineSpacing(layout.lineSpacing);
+  }
+
+  setCardSlotVisualState(slot, palette) {
+    slot.bg.setFillStyle(palette.shell);
+    slot.bodyPanel.setFillStyle(palette.body);
+    slot.titleBand.setFillStyle(palette.title);
+    slot.frame.setAlpha(palette.frameAlpha);
+    slot.label.setColor(palette.text);
+  }
+
   createCardUI() {
     const boardCenterX = this.boardStartX + (BOARD_SIZE * TILE_SIZE) / 2;
     const playerCardOffset = 30;
     const neutralOffset = 82;
 
-    const createCardSlot = (x, y, owner, index) => {
+    const createCardSlot = (x, y, owner, index, slotType = "player") => {
+      const metrics = CARD_SLOT_METRICS[slotType];
+      const titleY = y - metrics.height / 2 + metrics.titleHeight / 2 + 2;
+      const bodyHeight = metrics.height - metrics.titleHeight - 5;
+      const bodyY = y + metrics.height / 2 - bodyHeight / 2 - 2;
       const bg = this.add
-        .rectangle(x, y, 52, 28, 0x2e2a28)
+        .rectangle(x, y, metrics.width, metrics.height, 0x221f1d)
         .setStrokeStyle(0, 0x000000)
         .setInteractive({ useHandCursor: true });
+      const bodyPanel = this.add.rectangle(
+        x,
+        bodyY,
+        metrics.width - metrics.bodyInset * 2,
+        bodyHeight,
+        0x2b2521,
+      );
+      const titleBand = this.add.rectangle(
+        x,
+        titleY,
+        metrics.width - metrics.bodyInset * 2,
+        metrics.titleHeight,
+        0x5a4f42,
+      );
       const frame = this.add
         .image(x, y, this.textureOrFallback(TEXTURE_KEYS.ui.cardFramePlayer))
-        .setDisplaySize(52, 28)
+        .setDisplaySize(metrics.width, metrics.height)
         .setDepth(8);
       const selectedFrame = this.add
         .image(x, y, this.textureOrFallback(TEXTURE_KEYS.ui.cardFrameSelected))
-        .setDisplaySize(52, 28)
+        .setDisplaySize(metrics.width, metrics.height)
         .setDepth(9)
         .setVisible(false);
       const label = this.add
-        .text(x, y, "", { fontSize: "8px", color: "#f4ead5", align: "center" })
+        .text(x, titleY, "", {
+          fontFamily: '"Trebuchet MS", "Segoe UI", sans-serif',
+          fontSize: "8px",
+          fontStyle: "bold",
+          color: "#f8edd3",
+          align: "center",
+        })
         .setOrigin(0.5)
         .setDepth(10);
+      label.setLineSpacing(-1);
 
       bg.on("pointerdown", () => {
         if (owner !== this.currentPlayer) {
@@ -394,7 +530,7 @@ export class GameScene extends Phaser.Scene {
         this.refreshCardUI();
       });
 
-      return { bg, frame, selectedFrame, label, owner, index };
+      return { bg, bodyPanel, titleBand, frame, selectedFrame, label, owner, index, slotType };
     };
 
     this.cardUi.player2.push(createCardSlot(boardCenterX - playerCardOffset, 18, OWNER.PLAYER_2, 0));
@@ -403,42 +539,39 @@ export class GameScene extends Phaser.Scene {
     this.cardUi.player1.push(createCardSlot(boardCenterX + playerCardOffset, 162, OWNER.PLAYER_1, 1));
 
     const neutralX = boardCenterX + neutralOffset;
-    const neutralBg = this.add.rectangle(neutralX, 90, 48, 30, 0x2d2c30).setStrokeStyle(0, 0x000000);
-    const neutralFrame = this.add
-      .image(neutralX, 90, this.textureOrFallback(TEXTURE_KEYS.ui.cardFrameNeutral))
-      .setDisplaySize(48, 30)
-      .setDepth(8);
-    const neutralLabel = this.add
-      .text(neutralX, 90, "", { fontSize: "8px", color: "#fff6dc", align: "center" })
-      .setOrigin(0.5)
-      .setDepth(10);
-    this.cardUi.neutral = { bg: neutralBg, frame: neutralFrame, label: neutralLabel };
+    const neutralSlot = createCardSlot(neutralX, 90, null, null, "neutral");
+    neutralSlot.frame.setTexture(this.textureOrFallback(TEXTURE_KEYS.ui.cardFrameNeutral));
+    this.cardUi.neutral = neutralSlot;
   }
 
   refreshCardUI() {
     const updateSlots = (slots, cards, isCurrentPlayer) => {
       slots.forEach((slot, index) => {
         const card = cards[index];
-        slot.label.setText(card ? card.name : "-");
-        slot.bg.setFillStyle(isCurrentPlayer ? 0x2f2a24 : 0x26221e);
-        slot.frame.setAlpha(isCurrentPlayer ? 1 : 0.8);
+        this.applyCardTitleLayout(slot.label, card ? card.name : "-");
         slot.selectedFrame.setVisible(false);
 
+        let palette = isCurrentPlayer ? CARD_SLOT_COLORS.playerActive : CARD_SLOT_COLORS.playerIdle;
+
         if (isCurrentPlayer && this.selectedPiece) {
-          slot.bg.setFillStyle(0x383027);
+          palette = CARD_SLOT_COLORS.playerReady;
         }
 
         if (isCurrentPlayer && this.selectedCardIndex === index) {
-          slot.bg.setFillStyle(0x58452f);
+          palette = CARD_SLOT_COLORS.playerSelected;
           slot.selectedFrame.setVisible(true);
         }
+
+        this.setCardSlotVisualState(slot, palette);
       });
     };
 
     updateSlots(this.cardUi.player1, this.cards.player1, this.currentPlayer === OWNER.PLAYER_1);
     updateSlots(this.cardUi.player2, this.cards.player2, this.currentPlayer === OWNER.PLAYER_2);
 
-    this.cardUi.neutral.label.setText(this.cards.neutral.name);
+    this.applyCardTitleLayout(this.cardUi.neutral.label, this.cards.neutral.name);
+    this.setCardSlotVisualState(this.cardUi.neutral, CARD_SLOT_COLORS.neutral);
+    this.cardUi.neutral.selectedFrame.setVisible(false);
   }
 
   createTurnIndicator() {
@@ -559,14 +692,14 @@ export class GameScene extends Phaser.Scene {
 
     const verticalOffset = player === OWNER.PLAYER_1 ? -4 : 4;
     this.tweens.add({
-      targets: [slot.bg, slot.frame, slot.selectedFrame, slot.label],
+      targets: [slot.bg, slot.bodyPanel, slot.titleBand, slot.frame, slot.selectedFrame, slot.label],
       y: `+=${verticalOffset}`,
       duration: 80,
       yoyo: true,
       ease: "Sine.InOut",
     });
     this.tweens.add({
-      targets: [neutral.bg, neutral.frame, neutral.label],
+      targets: [neutral.bg, neutral.bodyPanel, neutral.titleBand, neutral.frame, neutral.label],
       y: `+=${-verticalOffset}`,
       duration: 80,
       yoyo: true,
